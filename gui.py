@@ -7,7 +7,7 @@ from file_sorter import FileSorter
 class FileManagerApp:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("File Manager — Sort by Type")
+        self.root.title("📂 Smart File Manager v1.0")
         self.root.geometry("640x520")
         self.root.minsize(520, 420)
 
@@ -47,7 +47,28 @@ class FileManagerApp:
             anchor="w", padx=8, pady=8
         )
 
-        ttk.Button(self.root, text="Sort Files", command=self._sort).pack(pady=8)
+        self.sort_btn = ttk.Button(
+            self.root,
+            text="📂 Sort Files",
+            command=self._sort
+        )
+        self.sort_btn.pack(pady=8)
+        
+        self.progress = ttk.Progressbar(
+            self.root,
+            mode="indeterminate",
+            length=300
+        )
+        self.progress.pack(pady=(0, 8))
+
+        button_frame = ttk.Frame(self.root)
+        button_frame.pack(fill="x", padx=12)
+        
+        ttk.Button(
+            button_frame,
+            text="Clear Log",
+            command=self._clear_log
+        ).pack(side="right")
 
         log_frame = ttk.LabelFrame(self.root, text="Log")
         log_frame.pack(fill="both", expand=True, **padding)
@@ -86,7 +107,7 @@ class FileManagerApp:
 
         parts = [f"{category}: {count}" for category, count in sorted(preview.items())]
         self.preview_var.set(" | ".join(parts))
-
+    
     def _append_log(self, text: str):
         self.log_text.configure(state="normal")
         self.log_text.insert("end", text + "\n")
@@ -105,21 +126,34 @@ class FileManagerApp:
             return
 
         action = self.action_var.get()
+        confirm = messagebox.askyesno(
+            "Confirm Sorting",
+            f"Do you want to {action} all supported files?"
+        )
+
+if not confirm:
+    return
         self._clear_log()
         self.status_var.set("Sorting...")
         self.root.update_idletasks()
+        self.sort_btn.config(state="disabled")i
+        self.progress.start(10)
 
         try:
             result = FileSorter(folder, action=action).sort()
         except OSError as exc:
             self.status_var.set("Error")
             messagebox.showerror("Error", f"Could not access folder:\n{exc}")
+            self.progress.stop()
+            self.sort_btn.config(state="normal")
             return
 
         if result["total"] == 0:
             self.status_var.set("Ready")
             messagebox.showinfo("No files", "No files to sort in this folder.")
             self._update_preview()
+            self.progress.stop()
+            self.sort_btn.config(state="normal")
             return
 
         for line in result["log"]:
@@ -130,6 +164,8 @@ class FileManagerApp:
         verb = "moved" if action == "move" else "copied"
         self._append_log(f"\nDone — {result['total']} file(s) {verb}.")
         self.status_var.set(f"Done — {result['total']} files organized")
+        self.progress.stop()
+        self.sort_btn.config(state="normal")
         self._update_preview()
 
     def run(self):
