@@ -16,6 +16,12 @@ def safe_dest_path(dest_dir: str, filename: str) -> str:
         counter += 1
     return dest
 
+def format_size(size):
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 class FileSorter:
     def __init__(self, folder: str, action: str = "move"):
@@ -54,8 +60,13 @@ class FileSorter:
             category = get_category(filename)
             dest_dir = os.path.join(self.folder, category)
             os.makedirs(dest_dir, exist_ok=True)
-
             src = os.path.join(self.folder, filename)
+            # Skip empty files
+            if os.path.getsize(src) == 0:
+                errors.append(f"Skipped empty file: {filename}")
+                continue
+
+            size = format_size(os.path.getsize(src))
             dest = safe_dest_path(dest_dir, filename)
 
             try:
@@ -65,12 +76,20 @@ class FileSorter:
                 else:
                     shutil.move(src, dest)
                     verb = "Moved"
+                
                 rel_dest = os.path.relpath(dest, self.folder)
-                log.append(f"{verb} {filename} -> {rel_dest}")
+                log.append(f"{verb} {filename} ({size}) -> {rel_dest}")
+                
                 summary[category] += 1
+                
             except OSError as exc:
                 errors.append(f"Failed to process {filename}: {exc}")
 
+        log.append("")
+        log.append("===== SUMMARY =====")
+        for category, count in summary.items():
+            log.append(f"{category}: {count} file(s)")
+        
         return {
             "summary": dict(summary),
             "log": log,
